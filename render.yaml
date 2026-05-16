@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: music-room
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: music-room
+          property: host
+      - key: YOUTUBE_API_KEY
+        sync: false
