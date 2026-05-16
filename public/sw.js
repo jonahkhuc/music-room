@@ -20,8 +20,9 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Only cache GET navigation requests; let API / socket bypass
+  // Only cache GET requests over http/https; skip API, socket, and extension URLs
   if (e.request.method !== 'GET') return;
+  if (!e.request.url.startsWith('http')) return;
   if (e.request.url.includes('/api/') || e.request.url.includes('socket.io')) return;
 
   e.respondWith(

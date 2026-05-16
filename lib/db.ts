@@ -4,10 +4,22 @@ function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-const rooms = new Map<string, Room>();
-const users = new Map<string, RoomUser>();       // userId → RoomUser
-const songs = new Map<string, Song>();           // "source:sourceId" → Song
-const queue = new Map<string, QueueItem>();      // itemId → QueueItem
+// Store on `global` so the same Maps are shared across Next.js module instances
+// (API routes bundle separately from the custom server).
+const g = global as any;
+if (!g.__musicRoomDB) {
+  g.__musicRoomDB = {
+    rooms: new Map<string, Room>(),
+    users: new Map<string, RoomUser>(),
+    songs: new Map<string, Song>(),
+    queue: new Map<string, QueueItem>(),
+  };
+}
+
+const rooms: Map<string, Room>      = g.__musicRoomDB.rooms;
+const users: Map<string, RoomUser>  = g.__musicRoomDB.users;
+const songs: Map<string, Song>      = g.__musicRoomDB.songs;
+const queue: Map<string, QueueItem> = g.__musicRoomDB.queue;
 
 export async function createRoom(
   name: string,

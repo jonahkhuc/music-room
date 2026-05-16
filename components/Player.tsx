@@ -264,18 +264,6 @@ export function Player({
         >
           {/* YT player always mounted so it keeps playing in audio-only mode */}
           <div id={CONTAINER_ID} className="absolute inset-0" />
-          {/* Shield: blocks hover/click on the iframe so YouTube's chrome
-              (share / watch-later / more-videos / logo) never appears.
-              Host can click anywhere on the video to toggle play. */}
-          {song && (
-            <div
-              className={`absolute inset-0 ${isHost ? 'cursor-pointer' : 'cursor-default'}`}
-              onClick={isHost ? handlePlayPause : undefined}
-              onDoubleClick={isHost ? () => applyMode(displayMode === 'fullscreen' ? 'default' : 'fullscreen') : undefined}
-              title={lockTitle}
-              aria-hidden="true"
-            />
-          )}
           {!song && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-gray-400 gap-2">
               <svg className="w-12 h-12 opacity-30" fill="currentColor" viewBox="0 0 24 24">
@@ -435,7 +423,12 @@ function Btn({ children, onClick, disabled, label, active }: {
 
 // ─── icons ────────────────────────────────────────────────────────────────────
 const PlayIcon       = () => <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>;
-const PauseIcon      = () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>;
+const PauseIcon      = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <rect x="5" y="4" width="4" height="16" rx="1.5"/>
+    <rect x="15" y="4" width="4" height="16" rx="1.5"/>
+  </svg>
+);
 const PrevIcon       = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>;
 const NextIcon       = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>;
 const HeadphonesIcon   = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0-9 9v7a2 2 0 0 0 2 2h3v-8H5v-1a7 7 0 1 1 14 0v1h-3v8h3a2 2 0 0 0 2-2v-7a9 9 0 0 0-9-9z"/></svg>;
@@ -447,19 +440,15 @@ const VolMuteIcon    = () => <svg className="w-4 h-4" fill="currentColor" viewBo
 const VolLowIcon     = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg>;
 const VolHighIcon    = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>;
 
-const ReplayIcon  = ({ n }: { n: number }) => (
-  <div className="relative flex items-center justify-center w-5 h-5">
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M12.5 3C7.81 3 4 6.81 4 11.5S7.81 20 12.5 20s8.5-3.81 8.5-8.5H19c0 3.58-2.92 6.5-6.5 6.5S6 15.08 6 11.5 8.92 5 12.5 5c1.8 0 3.42.74 4.6 1.92L14 10h7V3l-2.3 2.3A8.46 8.46 0 0 0 12.5 3z"/>
-    </svg>
-    <span className="absolute text-[7px] font-bold leading-none mt-0.5">{n}</span>
-  </div>
+const ReplayIcon = ({ n }: { n: number }) => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    <text x="12" y="15.5" textAnchor="middle" fontSize="6.5" fontWeight="700" fontFamily="sans-serif">{n}</text>
+  </svg>
 );
 const ForwardIcon = ({ n }: { n: number }) => (
-  <div className="relative flex items-center justify-center w-5 h-5">
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M11.5 3C6.81 3 3 6.81 3 11.5S6.81 20 11.5 20s8.5-3.81 8.5-8.5H18c0 3.58-2.92 6.5-6.5 6.5S5 15.08 5 11.5 7.92 5 11.5 5c1.8 0 3.42.74 4.6 1.92L13 10h7V3l-2.3 2.3A8.46 8.46 0 0 0 11.5 3z" transform="scale(-1,1) translate(-24,0)"/>
-    </svg>
-    <span className="absolute text-[7px] font-bold leading-none mt-0.5">{n}</span>
-  </div>
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+    <text x="12" y="15.5" textAnchor="middle" fontSize="6.5" fontWeight="700" fontFamily="sans-serif">{n}</text>
+  </svg>
 );

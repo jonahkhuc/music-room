@@ -8,6 +8,15 @@ import type { SearchResult } from '../types';
 
 const YT_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
+/** Convert any YouTube URL or video ID to a clean embed URL. */
+export function toEmbedUrl(input: string, params: Record<string, string> = {}): string | null {
+  const id = extractVideoId(input);
+  if (!id) return null;
+  const url = new URL(`https://www.youtube.com/embed/${id}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return url.toString();
+}
+
 /** Extract video ID from any YouTube URL format. */
 export function extractVideoId(url: string): string | null {
   const patterns = [
