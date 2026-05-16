@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #7C3AED;
+}
+
+html, body {
+  background-color: #0d0d0f;
+  color: white;
+  height: 100%;
+}
+
+/* Smooth scrollbar on dark bg */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }

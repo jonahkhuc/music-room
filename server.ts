@@ -1,0 +1,31 @@
+import 'dotenv/config';
+import { createServer } from 'http';
+import { parse } from 'url';
+import next from 'next';
+import { Server as SocketIO } from 'socket.io';
+import { setupSocketHandlers } from './server/socket-handler';
+import type { ServerToClientEvents, ClientToServerEvents } from './types';
+
+const dev  = process.env.NODE_ENV !== 'production';
+const port = parseInt(process.env.PORT ?? '3000', 10);
+
+const app    = next({ dev });
+const handle = app.getRequestHandler();
+
+app.prepare().then(() => {
+  const httpServer = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    handle(req, res, parsedUrl);
+  });
+
+  const io = new SocketIO<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+    cors: { origin: '*' },
+    transports: ['websocket', 'polling'],
+  });
+
+  setupSocketHandlers(io);
+
+  httpServer.listen(port, () => {
+    console.log(`> Music Room ready on http://localhost:${port}`);
+  });
+});
