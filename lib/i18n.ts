@@ -22,8 +22,8 @@ export const translations = {
     publicDesc:     'Hiển thị trong danh sách. Cần host duyệt để vào.',
     privateDesc:    'Ẩn khỏi danh sách — chỉ vào được bằng mã.',
     createRoom:     'Tạo phòng',
-    roomCode:       'Mã phòng',
-    roomCodePh:     'ABC12345',
+    roomCode:       'Mã phòng hoặc link',
+    roomCodePh:     'ABC12345 hoặc dán link phòng',
     requestJoin:    'Yêu cầu tham gia',
     lobbyHint:      'Phòng mặc định luôn mở, mã:',
     waiting:        (code: string) => `Đang chờ host của ${code} duyệt…`,
@@ -59,6 +59,7 @@ export const translations = {
     noSongs:        'Chưa có bài nào',
     addedBy:        'Thêm bởi',
     hostOnly:       'Chỉ host mới chọn được bài',
+    removeSong:     'Xoá khỏi hàng đợi',
     // Search
     searchPh:       'Tìm kiếm hoặc dán link YouTube…',
     searchFailed:   'Tìm kiếm thất bại',
@@ -80,6 +81,7 @@ export const translations = {
     toastApproved:    (name: string) => `Đã duyệt ${name}`,
     toastDenied:      (name: string) => `Đã từ chối ${name}`,
     toastSongAdded:   'Đã thêm bài vào hàng đợi',
+    toastSongRemoved: 'Đã xoá bài khỏi hàng đợi',
   },
   en: {
     // Home
@@ -102,8 +104,8 @@ export const translations = {
     publicDesc:     'Listed in the rooms tab. Anyone needs host approval to join.',
     privateDesc:    'Hidden from the rooms list — only joinable by code.',
     createRoom:     'Create Room',
-    roomCode:       'Room code',
-    roomCodePh:     'ABC12345',
+    roomCode:       'Room code or link',
+    roomCodePh:     'ABC12345 or paste a room link',
     requestJoin:    'Request to Join',
     lobbyHint:      'The always-on test room code is',
     waiting:        (code: string) => `Waiting for host of ${code} to approve…`,
@@ -139,6 +141,7 @@ export const translations = {
     noSongs:        'No songs yet',
     addedBy:        'Added by',
     hostOnly:       'Only the host can change the song',
+    removeSong:     'Remove from queue',
     // Search
     searchPh:       'Search YouTube or paste a URL…',
     searchFailed:   'Search failed',
@@ -160,6 +163,7 @@ export const translations = {
     toastApproved:    (name: string) => `Approved ${name}`,
     toastDenied:      (name: string) => `Denied ${name}`,
     toastSongAdded:   'Song added to queue',
+    toastSongRemoved: 'Song removed from queue',
   },
 } as const;
 

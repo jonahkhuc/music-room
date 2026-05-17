@@ -8,11 +8,12 @@ interface Props {
   queue:       QueueItem[];
   playerState: PlayerState;
   onPlay:      (queueItemId: string) => void;
+  onRemove?:   (queueItemId: string) => void;
   /** When false, click-to-play is disabled (e.g. only host can pick songs) */
   canControl?: boolean;
 }
 
-export function Queue({ queue, playerState, onPlay, canControl = true }: Props) {
+export function Queue({ queue, playerState, onPlay, onRemove, canControl = true }: Props) {
   const { t }  = useT();
   const currentId  = playerState.current_song?.id;
   const currentIdx = queue.findIndex((q) => q.id === currentId);
@@ -37,12 +38,12 @@ export function Queue({ queue, playerState, onPlay, canControl = true }: Props) 
         if (!song) return null;
 
         return (
-          <li key={item.id}>
+          <li key={item.id} className="group/row flex items-stretch">
             <button
               onClick={() => canControl && onPlay(item.id)}
               disabled={!canControl && !isCurrent}
               title={canControl ? undefined : t.hostOnly}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+              className={`flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left transition-colors
                 ${isCurrent
                   ? 'bg-brand/10 border-l-2 border-brand'
                   : canControl
@@ -95,6 +96,25 @@ export function Queue({ queue, playerState, onPlay, canControl = true }: Props) 
                 )}
               </div>
             </button>
+            {canControl && onRemove && (
+              <button
+                onClick={() => onRemove(item.id)}
+                title={t.removeSong}
+                aria-label={t.removeSong}
+                tabIndex={-1}
+                className={`flex-shrink-0 flex items-center justify-center overflow-hidden
+                            text-gray-600 hover:text-red-400 hover:bg-red-500/10
+                            transition-[width,opacity] duration-150
+                            w-0 opacity-0
+                            group-hover/row:w-10 group-hover/row:opacity-100
+                            focus-visible:w-10 focus-visible:opacity-100
+                            ${isCurrent ? 'bg-brand/10' : ''}`}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+              </button>
+            )}
           </li>
         );
       })}

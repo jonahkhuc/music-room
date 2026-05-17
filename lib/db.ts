@@ -134,6 +134,13 @@ export async function markSongPlayed(queueItemId: string): Promise<void> {
   if (item) queue.set(queueItemId, { ...item, played_at: new Date().toISOString() });
 }
 
+export async function removeFromQueue(queueItemId: string, roomId: string): Promise<boolean> {
+  const item = queue.get(queueItemId);
+  if (!item || item.room_id !== roomId) return false;
+  queue.delete(queueItemId);
+  return true;
+}
+
 export const DEFAULT_ROOM_CODE = 'LOBBY';
 
 export async function ensureDefaultRoom(): Promise<Room> {

@@ -10,6 +10,15 @@ type LobbySocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 const DEFAULT_ROOM_CODE = 'LOBBY';
 
+// Chấp nhận cả mã thuần ("ABC123") lẫn URL chia sẻ ("https://host/room/ABC123").
+function extractRoomCode(input: string): { code: string; isUrl: boolean } {
+  const trimmed = input.trim();
+  if (!trimmed) return { code: '', isUrl: false };
+  const match = trimmed.match(/\/room\/([^/?#\s]+)/i);
+  if (match) return { code: match[1].toUpperCase(), isUrl: true };
+  return { code: trimmed.toUpperCase(), isUrl: false };
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { t }  = useT();
@@ -190,7 +199,13 @@ export default function HomePage() {
             <form onSubmit={handleJoin} className="flex flex-col gap-4">
               <Input
                 label={t.roomCode} placeholder={t.roomCodePh}
-                value={roomCode} onChange={(v) => setRoomCode(v.toUpperCase())}
+                value={roomCode}
+                onChange={(v) => {
+                  const { code, isUrl } = extractRoomCode(v);
+                  setRoomCode(code);
+                  // Dán link phòng -> auto request join, không cần bấm submit.
+                  if (isUrl && code) enterRoom(code, false);
+                }}
                 className="tracking-widest uppercase"
               />
               <SubmitButton loading={loading}>{t.requestJoin}</SubmitButton>

@@ -107,6 +107,7 @@ export interface ClientToServerEvents {
   join_room:           (data: { roomCode: string; userName: string }) => void;
   leave_room:          () => void;
   add_song:            (song: Omit<Song, 'id'>) => void;
+  remove_song:         (queueItemId: string) => void;
   next_song:           () => void;
   prev_song:           () => void;
   play_song:           (queueItemId: string) => void;

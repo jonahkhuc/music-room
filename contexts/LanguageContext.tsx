@@ -42,20 +42,25 @@ export function useT() {
 export function LanguageSelector({ className = '' }: { className?: string }) {
   const { locale, setLocale } = useT();
   return (
-    <div className={`flex items-center gap-1 bg-gray-800 rounded-lg p-0.5 text-xs font-medium ${className}`}>
-      {(['vi', 'en'] as Locale[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLocale(l)}
-          className={`px-2 py-1 rounded-md transition-colors ${
-            locale === l
-              ? 'bg-brand text-white'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          {l === 'vi' ? '🇻🇳 VI' : '🇺🇸 EN'}
-        </button>
-      ))}
+    <div className={`relative inline-flex ${className}`}>
+      <select
+        value={locale}
+        onChange={(e) => setLocale(e.target.value as Locale)}
+        aria-label="Language"
+        className="appearance-none bg-gray-800 text-gray-200 text-xs font-medium
+                   rounded-lg pl-2.5 pr-7 py-1.5 border border-gray-700
+                   outline-none focus:border-brand focus:ring-1 focus:ring-brand
+                   cursor-pointer transition-colors hover:bg-gray-700"
+      >
+        <option value="vi">🇻🇳 VI</option>
+        <option value="en">🇺🇸 EN</option>
+      </select>
+      <svg
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400"
+        fill="currentColor" viewBox="0 0 24 24"
+      >
+        <path d="M7 10l5 5 5-5z"/>
+      </svg>
     </div>
   );
 }

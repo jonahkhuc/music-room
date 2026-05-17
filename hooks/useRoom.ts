@@ -118,6 +118,9 @@ export function useRoom(roomCode: string, userName: string) {
   const addSong     = useCallback((song: Omit<Song, 'id'>) =>
     socketRef.current?.emit('add_song', song), []);
 
+  const removeSong  = useCallback((queueItemId: string) =>
+    socketRef.current?.emit('remove_song', queueItemId), []);
+
   const nextSong    = useCallback(() =>
     socketRef.current?.emit('next_song'), []);
 
@@ -157,7 +160,7 @@ export function useRoom(roomCode: string, userName: string) {
   return {
     connected, room, users, queue, playerState, messages, joinRequests,
     myId, isHost, error, typingUsers,
-    addSong, nextSong, prevSong, playSong, togglePlay, seek, requestSync,
+    addSong, removeSong, nextSong, prevSong, playSong, togglePlay, seek, requestSync,
     sendChat, respondJoin, reportProgress, startTyping, stopTyping, setVisibility,
   };
 }

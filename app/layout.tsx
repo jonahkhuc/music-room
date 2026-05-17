@@ -29,14 +29,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* Service worker tạm tắt — chưa muốn cache app shell.
+            Inline trong <head> để chạy TRƯỚC hydration: gỡ SW cũ + xoá
+            cache ngay, tránh stale shell làm React không bind được event. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  regs.forEach(function (r) { r.unregister(); });
+                });
+                if (window.caches && caches.keys) {
+                  caches.keys().then(function (keys) {
+                    keys.forEach(function (k) { caches.delete(k); });
+                  });
+                }
+              }
+            `,
+          }}
+        />
       </head>
       <body className="antialiased">
         <LanguageProvider>
           {children}
         </LanguageProvider>
-        {/* Service worker tạm tắt — chưa muốn cache app shell.
-            Vẫn load register-sw.js để unregister SW cũ ở client đã từng cài. */}
-        <script src="/register-sw.js" />
       </body>
     </html>
   );

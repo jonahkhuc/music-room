@@ -305,6 +305,41 @@ export function setupSocketHandlers(io: IO) {
       }
     });
 
+    // ── remove_song (host only) ──────────────────────────────────────────────
+    socket.on('remove_song', async (queueItemId: string) => {
+      const user = users.get(socket.id);
+      if (!user || !user.isHost) return;
+      try {
+        const room = await db.getRoomByCode(user.roomCode);
+        if (!room) return;
+
+        // Capture old position trước khi xoá để tính bài kế tiếp nếu cần.
+        const beforeQueue = await db.getRoomQueue(room.id);
+        const oldIdx      = beforeQueue.findIndex((q) => q.id === queueItemId);
+        if (oldIdx < 0) return;
+
+        const removed = await db.removeFromQueue(queueItemId, room.id);
+        if (!removed) return;
+
+        const queue = await db.getRoomQueue(room.id);
+        const mem   = getOrInitRoom(user.roomCode);
+
+        // Nếu xoá đúng bài đang phát: nhảy sang bài kế (modulo để wrap).
+        if (mem.player.current_song?.id === queueItemId) {
+          const next = queue.length > 0 ? queue[oldIdx % queue.length] : null;
+          mem.player = {
+            current_song: next,
+            is_playing:   next !== null,
+            current_time: 0,
+            updated_at:   Date.now(),
+          };
+          io.to(user.roomCode).emit('player_state_changed', mem.player);
+        }
+
+        io.to(user.roomCode).emit('queue_updated', queue);
+      } catch (err) { console.error('[ws] remove_song error:', err); }
+    });
+
     // ── next_song (host only) ────────────────────────────────────────────────
     socket.on('next_song', async () => {
       const user = users.get(socket.id);
@@ -318,7 +353,8 @@ export function setupSocketHandlers(io: IO) {
         const idx   = mem.player.current_song
           ? queue.findIndex((q) => q.id === mem.player.current_song!.id)
           : -1;
-        const next  = queue[idx + 1] ?? null;
+        // Hết queue thì lặp lại từ đầu (modulo). queue rỗng -> null.
+        const next  = queue.length > 0 ? queue[(idx + 1) % queue.length] : null;
 
         mem.player = {
           current_song: next,

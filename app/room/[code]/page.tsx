@@ -34,7 +34,7 @@ export default function RoomPage() {
   const {
     connected, room, users, queue, playerState, messages, joinRequests,
     myId, isHost, error, typingUsers,
-    addSong, nextSong, prevSong, playSong, togglePlay, seek,
+    addSong, removeSong, nextSong, prevSong, playSong, togglePlay, seek,
     sendChat, respondJoin, reportProgress, startTyping, stopTyping, setVisibility,
   } = useRoom(nameSet ? code : '', nameSet ? userName : '');
 
@@ -79,6 +79,11 @@ export default function RoomPage() {
     addSong(song);
     addToast(t.toastSongAdded);
   }, [addSong, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRemoveSong = useCallback((queueItemId: string) => {
+    removeSong(queueItemId);
+    addToast(t.toastSongRemoved, 'info');
+  }, [removeSong, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRespondJoin = useCallback((id: string, approved: boolean) => {
     const req = joinRequests.find((r) => r.id === id);
@@ -288,7 +293,7 @@ export default function RoomPage() {
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0">
-            <Queue queue={queue} playerState={playerState} onPlay={playSong} canControl={isHost} />
+            <Queue queue={queue} playerState={playerState} onPlay={playSong} onRemove={handleRemoveSong} canControl={isHost} />
           </div>
           <div className="flex-shrink-0 border-t border-gray-800 px-4 py-3 bg-gray-950/95 backdrop-blur">
             <SearchBar onAdd={handleAddSong} />
