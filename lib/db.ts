@@ -56,6 +56,11 @@ export async function updateRoomHost(roomId: string, hostId: string): Promise<vo
   if (r) rooms.set(roomId, { ...r, host_id: hostId });
 }
 
+export async function updateRoomVisibility(roomId: string, visibility: 'public' | 'private'): Promise<void> {
+  const r = rooms.get(roomId);
+  if (r) rooms.set(roomId, { ...r, visibility });
+}
+
 export async function createUser(data: {
   room_id: string; name: string; socket_id: string; is_host: boolean;
 }): Promise<RoomUser> {

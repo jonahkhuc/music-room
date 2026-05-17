@@ -98,6 +98,8 @@ export interface ServerToClientEvents {
   join_request:         (req: JoinRequest) => void;             // → host only
   join_requests_state:  (reqs: JoinRequest[]) => void;          // → host only
   join_request_result:  (data: { roomCode: string; approved: boolean }) => void; // → requester
+  user_typing:          (data: { userId: string; userName: string; isTyping: boolean }) => void;
+  room_updated:         (room: Room) => void;
   error:                (message: string) => void;
 }
 
@@ -117,6 +119,9 @@ export interface ClientToServerEvents {
   list_rooms:          () => void;
   request_join:        (data: { roomCode: string; userName: string }) => void;
   respond_join:        (data: { requestId: string; approved: boolean }) => void;
+  typing_start:        () => void;
+  typing_stop:         () => void;
+  set_visibility:      (visibility: 'public' | 'private') => void;
 }
 
 // ─── API payloads ──────────────────────────────────────────────────────────────

@@ -26,10 +26,11 @@ interface MemUser {
 }
 
 interface MemRoom {
-  player:        PlayerState;
-  hostSocketId:  string | null;
-  messages:      ChatMessage[];
-  joinRequests:  JoinRequest[];
+  player:          PlayerState;
+  hostSocketId:    string | null;
+  messages:        ChatMessage[];
+  joinRequests:    JoinRequest[];
+  approvedSockets: Set<string>;  // sockets approved to join_room for private rooms
 }
 
 const MAX_CHAT_HISTORY = 100;
@@ -40,10 +41,11 @@ const roomCache = new Map<string, MemRoom>();   // roomCode → room state
 function getOrInitRoom(code: string): MemRoom {
   if (!roomCache.has(code)) {
     roomCache.set(code, {
-      player:       { current_song: null, is_playing: false, current_time: 0, updated_at: 0 },
-      hostSocketId: null,
-      messages:     [],
-      joinRequests: [],
+      player:          { current_song: null, is_playing: false, current_time: 0, updated_at: 0 },
+      hostSocketId:    null,
+      messages:        [],
+      joinRequests:    [],
+      approvedSockets: new Set(),
     });
   }
   return roomCache.get(code)!;
@@ -106,19 +108,23 @@ export function setupSocketHandlers(io: IO) {
         const room = await db.getRoomByCode(code);
         if (!room) { socket.emit('error', 'Room not found'); return; }
 
-        // Default room: auto-approve, no host required
-        if (room.is_default) {
-          socket.emit('join_request_result', { roomCode: code, approved: true });
-          return;
-        }
-
         const mem = getOrInitRoom(code);
-        if (!mem.hostSocketId) {
-          // No host present → auto-approve (room is effectively empty)
+
+        // Public rooms and default room: auto-approve
+        if (room.is_default || room.visibility !== 'private') {
+          mem.approvedSockets.add(socket.id);
           socket.emit('join_request_result', { roomCode: code, approved: true });
           return;
         }
 
+        // Private room with no host: auto-approve
+        if (!mem.hostSocketId) {
+          mem.approvedSockets.add(socket.id);
+          socket.emit('join_request_result', { roomCode: code, approved: true });
+          return;
+        }
+
+        // Private room with host: send request to host
         const req: JoinRequest = {
           id:         uid(),
           room_code:  code,
@@ -148,6 +154,7 @@ export function setupSocketHandlers(io: IO) {
       if (idx < 0) return;
 
       const [req] = mem.joinRequests.splice(idx, 1);
+      if (approved) mem.approvedSockets.add(req.socket_id);
       io.to(req.socket_id).emit('join_request_result', {
         roomCode: req.room_code,
         approved,
@@ -164,6 +171,16 @@ export function setupSocketHandlers(io: IO) {
 
         const existingUsers = await db.getRoomUsers(room.id);
         const isFirstUser   = existingUsers.length === 0;
+
+        // Private rooms: verify the socket was approved (first user = host, always allowed)
+        if (!room.is_default && room.visibility === 'private' && !isFirstUser) {
+          const mem = getOrInitRoom(code);
+          if (!mem.approvedSockets.has(socket.id)) {
+            socket.emit('error', 'Room not found');
+            return;
+          }
+          mem.approvedSockets.delete(socket.id);
+        }
 
         const user = await db.createUser({
           room_id:   room.id,
@@ -206,7 +223,7 @@ export function setupSocketHandlers(io: IO) {
           users:    allUsers,
           queue,
           player:   mem.player,
-          messages: mem.messages,
+          messages: [],
         };
 
         socket.emit('room_state', state);
@@ -395,6 +412,34 @@ export function setupSocketHandlers(io: IO) {
       mem.player = { ...mem.player, current_time: seconds, updated_at: Date.now() };
     });
 
+    // ── set_visibility (host only) ────────────────────────────────────────────
+    socket.on('set_visibility', async (visibility) => {
+      const user = users.get(socket.id);
+      if (!user) { console.warn('[ws] set_visibility: no user for socket', socket.id); return; }
+      if (!user.isHost) { console.warn('[ws] set_visibility: not host', user.name); return; }
+      try {
+        const room = await db.getRoomByCode(user.roomCode);
+        if (!room) { console.warn('[ws] set_visibility: room not found', user.roomCode); return; }
+        await db.updateRoomVisibility(room.id, visibility);
+        io.to(user.roomCode).emit('room_updated', { ...room, visibility });
+        broadcastRoomsList();
+        console.log(`[ws] ${user.name} set ${user.roomCode} visibility → ${visibility}`);
+      } catch (err) { console.error('[ws] set_visibility error:', err); }
+    });
+
+    // ── typing ────────────────────────────────────────────────────────────────
+    socket.on('typing_start', () => {
+      const user = users.get(socket.id);
+      if (!user) return;
+      socket.to(user.roomCode).emit('user_typing', { userId: user.id, userName: user.name, isTyping: true });
+    });
+
+    socket.on('typing_stop', () => {
+      const user = users.get(socket.id);
+      if (!user) return;
+      socket.to(user.roomCode).emit('user_typing', { userId: user.id, userName: user.name, isTyping: false });
+    });
+
     // ── sync_request ──────────────────────────────────────────────────────────
     socket.on('sync_request', () => {
       const user = users.get(socket.id);
@@ -407,8 +452,9 @@ export function setupSocketHandlers(io: IO) {
     socket.on('disconnect', async () => {
       const user = users.get(socket.id);
       if (!user) {
-        // Could still be a guest with a pending join request – clean it up.
+        // Clean up any pending join requests or approvals for this socket
         for (const mem of Array.from(roomCache.values())) {
+          mem.approvedSockets.delete(socket.id);
           const before = mem.joinRequests.length;
           mem.joinRequests = mem.joinRequests.filter((r) => r.socket_id !== socket.id);
           if (mem.joinRequests.length !== before && mem.hostSocketId) {
@@ -418,6 +464,7 @@ export function setupSocketHandlers(io: IO) {
         return;
       }
       users.delete(socket.id);
+      socket.to(user.roomCode).emit('user_typing', { userId: user.id, userName: user.name, isTyping: false });
 
       try {
         await db.removeUser(user.id);

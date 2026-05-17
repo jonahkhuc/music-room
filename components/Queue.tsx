@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import type { QueueItem, PlayerState } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   queue:       QueueItem[];
@@ -12,7 +13,8 @@ interface Props {
 }
 
 export function Queue({ queue, playerState, onPlay, canControl = true }: Props) {
-  const currentId = playerState.current_song?.id;
+  const { t }  = useT();
+  const currentId  = playerState.current_song?.id;
   const currentIdx = queue.findIndex((q) => q.id === currentId);
 
   if (queue.length === 0) {
@@ -21,7 +23,7 @@ export function Queue({ queue, playerState, onPlay, canControl = true }: Props) 
         <svg className="w-10 h-10 opacity-40" fill="currentColor" viewBox="0 0 24 24">
           <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
         </svg>
-        <p className="text-sm">No songs yet</p>
+        <p className="text-sm">{t.noSongs}</p>
       </div>
     );
   }
@@ -39,7 +41,7 @@ export function Queue({ queue, playerState, onPlay, canControl = true }: Props) 
             <button
               onClick={() => canControl && onPlay(item.id)}
               disabled={!canControl && !isCurrent}
-              title={canControl ? undefined : 'Only the host can change the song'}
+              title={canControl ? undefined : t.hostOnly}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
                 ${isCurrent
                   ? 'bg-brand/10 border-l-2 border-brand'
@@ -89,7 +91,7 @@ export function Queue({ queue, playerState, onPlay, canControl = true }: Props) 
                   {song.duration && ` · ${song.duration}`}
                 </p>
                 {item.added_by && (
-                  <p className="text-[10px] text-gray-600 truncate">Added by {item.added_by}</p>
+                  <p className="text-[10px] text-gray-600 truncate">{t.addedBy} {item.added_by}</p>
                 )}
               </div>
             </button>

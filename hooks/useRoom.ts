@@ -28,6 +28,8 @@ export function useRoom(roomCode: string, userName: string) {
   const [myId,         setMyId]         = useState<string | null>(null);
   const [isHost,       setIsHost]       = useState(false);
   const [error,        setError]        = useState<string | null>(null);
+  const [typingUsers,  setTypingUsers]  = useState<{ userId: string; userName: string }[]>([]);
+  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     if (!roomCode || !userName) return;
@@ -81,6 +83,26 @@ export function useRoom(roomCode: string, userName: string) {
       );
     });
 
+    socket.on('room_updated', (updated) => setRoom(updated));
+
+    socket.on('user_typing', ({ userId, userName, isTyping }) => {
+      const timers = typingTimers.current;
+      if (isTyping) {
+        setTypingUsers((prev) =>
+          prev.some((u) => u.userId === userId) ? prev : [...prev, { userId, userName }],
+        );
+        // Auto-clear after 4s in case typing_stop is never received
+        if (timers.has(userId)) clearTimeout(timers.get(userId)!);
+        timers.set(userId, setTimeout(() => {
+          setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+          timers.delete(userId);
+        }, 4000));
+      } else {
+        if (timers.has(userId)) { clearTimeout(timers.get(userId)!); timers.delete(userId); }
+        setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+      }
+    });
+
     socket.on('error', (msg) => setError(msg));
 
     return () => { socket.disconnect(); socketRef.current = null; };
@@ -123,10 +145,19 @@ export function useRoom(roomCode: string, userName: string) {
   const reportProgress = useCallback((seconds: number) =>
     socketRef.current?.emit('report_progress', seconds), []);
 
+  const startTyping = useCallback(() =>
+    socketRef.current?.emit('typing_start'), []);
+
+  const stopTyping = useCallback(() =>
+    socketRef.current?.emit('typing_stop'), []);
+
+  const setVisibility = useCallback((v: 'public' | 'private') =>
+    socketRef.current?.emit('set_visibility', v), []);
+
   return {
     connected, room, users, queue, playerState, messages, joinRequests,
-    myId, isHost, error,
+    myId, isHost, error, typingUsers,
     addSong, nextSong, prevSong, playSong, togglePlay, seek, requestSync,
-    sendChat, respondJoin, reportProgress,
+    sendChat, respondJoin, reportProgress, startTyping, stopTyping, setVisibility,
   };
 }

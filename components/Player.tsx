@@ -149,11 +149,12 @@ export function Player({
     }
 
     if (loadedVideoIdRef.current !== vid) {
-      // New song → load it
-      loadedVideoIdRef.current = vid;
-      p.loadVideoById(vid);
+      loadedVideoIdRef.current  = vid;
+      lastUpdatedAtRef.current  = state.updated_at;
+      const lag         = state.is_playing ? (Date.now() - state.updated_at) / 1000 : 0;
+      const startSeconds = Math.max(0, state.current_time + lag);
+      p.loadVideoById({ videoId: vid, startSeconds });
       if (!state.is_playing) {
-        // loadVideoById autoplays; pause immediately after load
         setTimeout(() => { p.pauseVideo?.(); }, 200);
       }
       return;

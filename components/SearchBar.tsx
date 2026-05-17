@@ -3,12 +3,14 @@
 import { useState, useRef } from 'react';
 import Image from 'next/image';
 import type { SearchResult, Song } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   onAdd: (song: Omit<Song, 'id'>) => void;
 }
 
 export function SearchBar({ onAdd }: Props) {
+  const { t }  = useT();
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export function SearchBar({ onAdd }: Props) {
       if (data.error) { setError(data.error); setResults([]); }
       else setResults(data.results ?? []);
     } catch {
-      setError('Search failed');
+      setError(t.searchFailed);
     } finally {
       setLoading(false);
     }
@@ -65,7 +67,7 @@ export function SearchBar({ onAdd }: Props) {
           type="text"
           value={query}
           onChange={handleInput}
-          placeholder="Search YouTube or paste a URL…"
+          placeholder={t.searchPh}
           className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 outline-none"
         />
         {loading && <Spinner />}

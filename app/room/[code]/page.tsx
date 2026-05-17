@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Player }    from '@/components/Player';
 import { Queue }     from '@/components/Queue';
@@ -8,7 +8,9 @@ import { SearchBar } from '@/components/SearchBar';
 import { UserList }  from '@/components/UserList';
 import { Chat }      from '@/components/Chat';
 import { useRoom }   from '@/hooks/useRoom';
-import type { JoinRequest } from '@/types';
+import { useToast, ToastContainer } from '@/components/Toast';
+import type { JoinRequest, Song } from '@/types';
+import { useT, LanguageSelector } from '@/contexts/LanguageContext';
 
 type RightTab = 'queue' | 'chat' | 'users';
 
@@ -31,15 +33,31 @@ export default function RoomPage() {
 
   const {
     connected, room, users, queue, playerState, messages, joinRequests,
-    myId, isHost, error,
+    myId, isHost, error, typingUsers,
     addSong, nextSong, prevSong, playSong, togglePlay, seek,
-    sendChat, respondJoin, reportProgress,
+    sendChat, respondJoin, reportProgress, startTyping, stopTyping, setVisibility,
   } = useRoom(nameSet ? code : '', nameSet ? userName : '');
+
+  const { t } = useT();
+  const { toasts, addToast } = useToast();
+  const handleTyping = (isTyping: boolean) => isTyping ? startTyping() : stopTyping();
 
   const [copied,    setCopied]    = useState(false);
   const [rightTab,  setRightTab]  = useState<RightTab>('queue');
   // Mobile-only: open chat as a bottom sheet
   const [mobilePanel, setMobilePanel] = useState<null | 'chat' | 'requests'>(null);
+
+  // Toast when visibility changes (server-confirmed)
+  const prevVisRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const vis = room?.visibility;
+    if (vis === undefined) return;
+    if (prevVisRef.current === undefined) { prevVisRef.current = vis; return; }
+    if (prevVisRef.current !== vis) {
+      prevVisRef.current = vis;
+      addToast(vis === 'public' ? t.toastVisPublic : t.toastVisPrivate, 'info');
+    }
+  }, [room?.visibility]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-pop the "requests" panel when something arrives (host only)
   useEffect(() => {
@@ -54,7 +72,19 @@ export default function RoomPage() {
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    addToast(t.toastCopied);
   }
+
+  const handleAddSong = useCallback((song: Omit<Song, 'id'>) => {
+    addSong(song);
+    addToast(t.toastSongAdded);
+  }, [addSong, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRespondJoin = useCallback((id: string, approved: boolean) => {
+    const req = joinRequests.find((r) => r.id === id);
+    respondJoin(id, approved);
+    if (req) addToast(approved ? t.toastApproved(req.user_name) : t.toastDenied(req.user_name), approved ? 'success' : 'info');
+  }, [respondJoin, joinRequests, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Name prompt if no query param + no stored name
   if (!nameSet) {
@@ -127,25 +157,51 @@ export default function RoomPage() {
                                  bg-brand/30 text-brand-light rounded">Default</span>
               )}
             </h1>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-green-400' : 'bg-gray-600'}`} />
               <span className="text-xs text-gray-500">
-                {connected ? `${users.length} listener${users.length !== 1 ? 's' : ''}` : 'Connecting…'}
-                {isHost && ' · You are host'}
+                {connected ? t.listeners(users.length) : t.connecting}
+                {isHost && ` ${t.youAreHost}`}
               </span>
+              {/* Visibility badge (non-host, read-only) */}
+              {room && !isHost && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium
+                  ${room.visibility === 'private'
+                    ? 'border-yellow-600/50 text-yellow-500'
+                    : 'border-green-600/50 text-green-500'}`}>
+                  {room.visibility === 'private' ? `🔒 ${t.visibilityPrivate}` : `🌐 ${t.visibilityPublic}`}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <LanguageSelector className="hidden sm:flex" />
+          {/* Host: visibility toggle */}
+          {isHost && room && (
+            <button
+              onClick={() => setVisibility(room.visibility === 'private' ? 'public' : 'private')}
+              title={room.visibility === 'private' ? t.makePublic : t.makePrivate}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0
+                ${room.visibility === 'private'
+                  ? 'bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 border border-yellow-700/40'
+                  : 'bg-green-900/30 text-green-400 hover:bg-green-900/50 border border-green-700/40'}`}
+            >
+              {room.visibility === 'private' ? '🔒' : '🌐'}
+              <span className="hidden sm:inline">
+                {room.visibility === 'private' ? t.visibilityPrivate : t.visibilityPublic}
+              </span>
+            </button>
+          )}
           {/* Host: pending requests badge (mobile) */}
-          {isHost && pendingCount > 0 && (
+          {isHost && room?.visibility === 'private' && pendingCount > 0 && (
             <button
               onClick={() => setMobilePanel('requests')}
               className="lg:hidden relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
                          bg-brand/20 text-brand-light text-xs font-medium"
             >
-              {pendingCount} request{pendingCount > 1 ? 's' : ''}
+              {t.pendingReqs(pendingCount)}
             </button>
           )}
 
@@ -235,7 +291,7 @@ export default function RoomPage() {
             <Queue queue={queue} playerState={playerState} onPlay={playSong} canControl={isHost} />
           </div>
           <div className="flex-shrink-0 border-t border-gray-800 px-4 py-3 bg-gray-950/95 backdrop-blur">
-            <SearchBar onAdd={addSong} />
+            <SearchBar onAdd={handleAddSong} />
           </div>
         </section>
 
@@ -245,17 +301,19 @@ export default function RoomPage() {
           w-80 xl:w-96 2xl:w-[400px] flex-shrink-0 min-h-0
           lg:order-3
         ">
-          {isHost && joinRequests.length > 0 && (
-            <JoinRequestsPanel requests={joinRequests} onRespond={respondJoin} />
+          {isHost && room?.visibility === 'private' && joinRequests.length > 0 && (
+            <JoinRequestsPanel requests={joinRequests} onRespond={handleRespondJoin} />
           )}
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 flex-shrink-0">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chat</h2>
           </div>
-          <Chat messages={messages} myId={myId} onSend={sendChat} className="flex-1 min-h-0" />
+          <Chat messages={messages} myId={myId} onSend={sendChat} onTyping={handleTyping} typingUsers={typingUsers} className="flex-1 min-h-0" />
         </aside>
       </div>
 
       {/* ── Mobile: bottom-sheet chat / requests ────────────────────────── */}
+      <ToastContainer toasts={toasts} />
+
       {mobilePanel && (
         <div className="lg:hidden fixed inset-0 z-40 flex flex-col justify-end">
           <button
@@ -278,10 +336,10 @@ export default function RoomPage() {
               </button>
             </div>
             {mobilePanel === 'chat' ? (
-              <Chat messages={messages} myId={myId} onSend={sendChat} className="flex-1 min-h-0" />
+              <Chat messages={messages} myId={myId} onSend={sendChat} onTyping={handleTyping} typingUsers={typingUsers} className="flex-1 min-h-0" />
             ) : (
               <div className="flex-1 overflow-y-auto">
-                <JoinRequestsPanel requests={joinRequests} onRespond={respondJoin} mobile />
+                <JoinRequestsPanel requests={joinRequests} onRespond={handleRespondJoin} mobile />
               </div>
             )}
           </div>
