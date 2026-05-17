@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import type { PlayerState } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 declare global {
   interface Window {
@@ -31,6 +33,7 @@ const REPORT_MS    = 3000;
 export function Player({
   playerState, isHost, onTogglePlay, onEnded, onSeek, onPrev, onNext, onReportProgress,
 }: Props) {
+  const { t } = useT();
   const ytRef            = useRef<any>(null);
   const rootRef          = useRef<HTMLDivElement>(null);
   const readyRef         = useRef(false);
@@ -48,6 +51,9 @@ export function Player({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration,    setDuration]    = useState(0);
   const [isSeeking,   setIsSeeking]   = useState(false);
+  // Tracks per-video fallback when maxresdefault.jpg doesn't exist
+  // (older/low-quality videos). Map: videoId → resolved src.
+  const [hiResFailed, setHiResFailed] = useState<Record<string, boolean>>({});
 
   // Sync state when user exits fullscreen via ESC or browser UI
   useEffect(() => {
@@ -228,9 +234,20 @@ export function Player({
     onSeek(Math.max(0, t));
   };
 
-  const lockTitle = isHost ? undefined : 'Only the host can control playback';
+  const lockTitle = isHost ? undefined : t.hostOnly2;
 
   const song = playerState.current_song?.song;
+
+  // Upgrade the audio-only artwork to maxresdefault.jpg when possible.
+  // Falls back to the original thumbnail if that variant doesn't exist.
+  const hiResThumb = (() => {
+    const t = song?.thumbnail;
+    if (!t) return null;
+    const m = t.match(/i\.ytimg\.com\/vi\/([A-Za-z0-9_-]+)\//);
+    if (!m) return t;
+    if (hiResFailed[m[1]]) return t;
+    return `https://i.ytimg.com/vi/${m[1]}/maxresdefault.jpg`;
+  })();
 
   // Theater / fullscreen share the same overlay-style layout. In fullscreen
   // mode the browser fullscreen API takes care of the actual sizing; we apply
@@ -270,7 +287,7 @@ export function Player({
               <svg className="w-12 h-12 opacity-30" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
               </svg>
-              <p className="text-sm">Queue is empty — add a song</p>
+              <p className="text-sm">{t.queueEmpty}</p>
             </div>
           )}
         </div>
@@ -278,13 +295,56 @@ export function Player({
 
       {/* ── Audio-only banner ─────────────────────────────────────────────── */}
       {audioOnly && (
-        <div className="h-24 bg-gradient-to-br from-brand-dark via-gray-900 to-gray-950 flex items-center justify-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-brand/30 flex items-center justify-center">
-            <svg className={`w-6 h-6 text-brand-light ${playerState.is_playing ? 'animate-pulse' : ''}`} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
-            </svg>
-          </div>
-          <span className="text-xs uppercase tracking-widest text-gray-400">Audio only</span>
+        <div className="relative flex flex-col items-center justify-center overflow-hidden px-4 sm:px-6 py-5 sm:py-7">
+          {/* Blurred thumbnail backdrop for the "cover-art" feel */}
+          {hiResThumb && (
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-cover bg-center opacity-30 blur-2xl scale-110"
+              style={{ backgroundImage: `url(${hiResThumb})` }}
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-950/40 to-gray-950" />
+
+          {hiResThumb ? (
+            <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
+              <Image
+                src={hiResThumb}
+                alt={song?.title ?? ''}
+                fill className="object-cover"
+                sizes="(min-width: 1024px) 60vw, 100vw"
+                quality={90}
+                priority
+                onError={() => {
+                  const m = song?.thumbnail?.match(/i\.ytimg\.com\/vi\/([A-Za-z0-9_-]+)\//);
+                  if (m) setHiResFailed((prev) => ({ ...prev, [m[1]]: true }));
+                }}
+              />
+              {playerState.is_playing && (
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-center gap-1.5 pb-5 bg-gradient-to-t from-black/70 via-black/20 to-transparent pt-16">
+                  {[0, 150, 300, 450, 600].map((d) => (
+                    <span
+                      key={d}
+                      className="w-1.5 bg-brand-light rounded-full animate-bounce"
+                      style={{ animationDelay: `${d}ms`, height: '40px' }}
+                    />
+                  ))}
+                </div>
+              )}
+              <span className="absolute top-3 right-3 text-[10px] uppercase tracking-widest text-white/90 bg-black/50 backdrop-blur px-2 py-1 rounded-md">
+                {t.audioOnly}
+              </span>
+            </div>
+          ) : (
+            <div className="relative flex flex-col items-center gap-3 py-10">
+              <div className="w-12 h-12 rounded-full bg-brand/30 flex items-center justify-center">
+                <svg className={`w-6 h-6 text-brand-light ${playerState.is_playing ? 'animate-pulse' : ''}`} fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+                </svg>
+              </div>
+              <span className="text-xs uppercase tracking-widest text-gray-400">{t.audioOnly}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -311,13 +371,13 @@ export function Player({
       {/* ── Song info ─────────────────────────────────────────────────────── */}
       <div className="px-4 pt-2 pb-1 flex items-baseline justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold truncate text-sm">{song?.title ?? 'Nothing playing'}</p>
+          <p className="font-semibold truncate text-sm">{song?.title ?? t.nothingPlaying}</p>
           {song?.channel && <p className="text-xs text-gray-400 truncate">{song.channel}</p>}
         </div>
         {!isHost && (
           <span className="flex-shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5
                            bg-gray-800 text-gray-400 rounded">
-            Listener
+            {t.listenerBadge}
           </span>
         )}
       </div>
@@ -329,28 +389,28 @@ export function Player({
           <Btn
             onClick={() => setAudioOnly(!audioOnly)}
             active={audioOnly}
-            label={audioOnly ? 'Show video' : 'Audio only'}
+            label={audioOnly ? t.showVideo : t.audioOnly}
           >
             {audioOnly ? <VideoIcon /> : <HeadphonesIcon />}
           </Btn>
           <Btn
             onClick={() => applyMode('default')}
             active={displayMode === 'default'}
-            label="Default view"
+            label={t.defaultView}
           >
             <DefaultViewIcon />
           </Btn>
           <Btn
             onClick={() => applyMode('theater')}
             active={displayMode === 'theater'}
-            label="Theater mode"
+            label={t.theaterMode}
           >
             <TheaterIcon />
           </Btn>
           <Btn
             onClick={() => applyMode('fullscreen')}
             active={displayMode === 'fullscreen'}
-            label="Fullscreen"
+            label={t.fullscreen}
           >
             <FullscreenIcon />
           </Btn>
@@ -358,7 +418,7 @@ export function Player({
 
         {/* Transport (host only) */}
         <div className="flex items-center gap-1" title={lockTitle}>
-          <Btn onClick={() => isHost && onPrev()} disabled={!song || !isHost} label="Previous"><PrevIcon /></Btn>
+          <Btn onClick={() => isHost && onPrev()} disabled={!song || !isHost} label={t.prevTrack}><PrevIcon /></Btn>
           <Btn onClick={() => handleSkip(-SEEK_STEP)} disabled={!song || !isHost} label={`-${SEEK_STEP}s`}>
             <ReplayIcon n={SEEK_STEP} />
           </Btn>
@@ -367,7 +427,7 @@ export function Player({
             onClick={handlePlayPause}
             disabled={!song || !isHost}
             title={lockTitle}
-            aria-label={playerState.is_playing ? 'Pause' : 'Play'}
+            aria-label={playerState.is_playing ? t.pause : t.play}
             className="w-12 h-12 rounded-full bg-brand flex items-center justify-center
                        disabled:opacity-40 disabled:cursor-not-allowed
                        hover:bg-brand-dark active:scale-95 transition-all"
@@ -378,18 +438,18 @@ export function Player({
           <Btn onClick={() => handleSkip(SEEK_STEP)} disabled={!song || !isHost} label={`+${SEEK_STEP}s`}>
             <ForwardIcon n={SEEK_STEP} />
           </Btn>
-          <Btn onClick={() => isHost && onNext()} disabled={!song || !isHost} label="Next"><NextIcon /></Btn>
+          <Btn onClick={() => isHost && onNext()} disabled={!song || !isHost} label={t.nextTrack}><NextIcon /></Btn>
         </div>
 
         {/* Volume */}
         <div className="flex items-center gap-1">
-          <Btn onClick={() => setMuted(!muted)} label={muted ? 'Unmute' : 'Mute'}>
+          <Btn onClick={() => setMuted(!muted)} label={muted ? t.unmute : t.mute}>
             {muted || volume === 0 ? <VolMuteIcon /> : volume < 50 ? <VolLowIcon /> : <VolHighIcon />}
           </Btn>
           <input
             type="range" min={0} max={100} value={muted ? 0 : volume}
             onChange={(e) => { setVolume(+e.target.value); setMuted(false); }}
-            aria-label="Volume"
+            aria-label={t.volume}
             className="w-16 h-1 accent-brand cursor-pointer hidden sm:block"
           />
         </div>

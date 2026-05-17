@@ -30,6 +30,17 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
+/** Extract playlist ID (list=...) from any YouTube URL. */
+export function extractPlaylistId(url: string): string | null {
+  const m = url.match(/[?&]list=([A-Za-z0-9_-]+)/);
+  if (!m) return null;
+  const id = m[1];
+  // YouTube auto-generated "Mix" playlists (RD...) aren't fetchable via the
+  // public API — treat them as not-a-playlist so we fall back to the single video.
+  if (id.startsWith('RD')) return null;
+  return id;
+}
+
 /** Fetch metadata for a single video via oEmbed (no API key needed). */
 export async function fetchVideoMeta(videoId: string): Promise<SearchResult> {
   const oembedUrl =
@@ -81,20 +92,79 @@ export async function searchYouTube(
   }));
 }
 
+/**
+ * Fetch all items of a YouTube playlist via Data API v3.
+ * Pages until empty or until `maxItems` is reached. Filters out
+ * private/deleted entries. Returns empty array without an API key.
+ */
+export async function fetchPlaylistItems(
+  playlistId: string,
+  maxItems = 200,
+): Promise<SearchResult[]> {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return [];
+
+  const collected: { videoId: string; title: string; channel: string; thumbnail: string }[] = [];
+  let pageToken: string | undefined;
+
+  while (collected.length < maxItems) {
+    const url = new URL(`${YT_API_BASE}/playlistItems`);
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('playlistId', playlistId);
+    url.searchParams.set('maxResults', '50');
+    url.searchParams.set('key', key);
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) break;
+    const data = await res.json();
+
+    for (const item of data.items ?? []) {
+      const snippet = item.snippet ?? {};
+      const videoId = snippet.resourceId?.videoId;
+      const title   = snippet.title;
+      if (!videoId || !title || title === 'Private video' || title === 'Deleted video') continue;
+      collected.push({
+        videoId,
+        title,
+        channel:   snippet.videoOwnerChannelTitle ?? snippet.channelTitle ?? '',
+        thumbnail: snippet.thumbnails?.medium?.url ?? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      });
+      if (collected.length >= maxItems) break;
+    }
+
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  const durations = await fetchVideoDetails(collected.map((c) => c.videoId), key);
+  return collected.map((c, idx) => ({
+    source_id: c.videoId,
+    source:    'youtube',
+    title:     c.title,
+    thumbnail: c.thumbnail,
+    duration:  durations[idx] ?? null,
+    channel:   c.channel,
+  }));
+}
+
 async function fetchVideoDetails(ids: string[], key: string): Promise<(string | null)[]> {
   if (!ids.length) return [];
-  const url = new URL(`${YT_API_BASE}/videos`);
-  url.searchParams.set('part', 'contentDetails');
-  url.searchParams.set('id', ids.join(','));
-  url.searchParams.set('key', key);
-
-  const res = await fetch(url.toString());
-  if (!res.ok) return ids.map(() => null);
-
-  const data = await res.json();
   const map: Record<string, string> = {};
-  for (const item of data.items ?? []) {
-    map[item.id] = parseDuration(item.contentDetails.duration);
+  // videos.list accepts up to 50 IDs per call — chunk for longer playlists.
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const url = new URL(`${YT_API_BASE}/videos`);
+    url.searchParams.set('part', 'contentDetails');
+    url.searchParams.set('id', chunk.join(','));
+    url.searchParams.set('key', key);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) continue;
+    const data = await res.json();
+    for (const item of data.items ?? []) {
+      map[item.id] = parseDuration(item.contentDetails.duration);
+    }
   }
   return ids.map((id) => map[id] ?? null);
 }

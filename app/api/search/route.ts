@@ -1,19 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchYouTube, extractVideoId, fetchVideoMeta } from '@/lib/youtube';
+import {
+  searchYouTube,
+  extractVideoId,
+  extractPlaylistId,
+  fetchVideoMeta,
+  fetchPlaylistItems,
+} from '@/lib/youtube';
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim();
   if (!q) return NextResponse.json({ results: [] });
 
   try {
-    // If the query looks like a YouTube URL or bare video ID, resolve directly
+    // 1. Playlist URL (?list=PL...) → expand to all items. Falls through to
+    //    single-video / search if no API key or the playlist is empty.
+    const playlistId = extractPlaylistId(q);
+    if (playlistId) {
+      if (!process.env.YOUTUBE_API_KEY) {
+        return NextResponse.json({
+          results: [],
+          hint: 'Set YOUTUBE_API_KEY to import playlists.',
+        });
+      }
+      const items = await fetchPlaylistItems(playlistId);
+      if (items.length > 0) {
+        return NextResponse.json({
+          results: items,
+          playlist: { id: playlistId, count: items.length },
+        });
+      }
+      // empty playlist → fall through to single-video handling if v= also present
+    }
+
+    // 2. Single video URL or bare ID — resolve via oEmbed (no key needed).
     const videoId = extractVideoId(q);
     if (videoId) {
       const meta = await fetchVideoMeta(videoId);
       return NextResponse.json({ results: [meta] });
     }
 
-    // Otherwise: keyword search via YouTube Data API v3
+    // 3. Keyword search.
     if (!process.env.YOUTUBE_API_KEY) {
       return NextResponse.json({
         results: [],

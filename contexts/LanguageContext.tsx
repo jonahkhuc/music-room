@@ -55,12 +55,12 @@ export function LanguageSelector({ className = '' }: { className?: string }) {
         <option value="vi">🇻🇳 VI</option>
         <option value="en">🇺🇸 EN</option>
       </select>
-      <svg
+      {/* <svg
         className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400"
         fill="currentColor" viewBox="0 0 24 24"
       >
         <path d="M7 10l5 5 5-5z"/>
-      </svg>
+      </svg> */}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import type { RoomUser } from '@/types';
+import { useT } from '@/contexts/LanguageContext';
 
 interface Props {
   users: RoomUser[];
@@ -8,12 +9,13 @@ interface Props {
 }
 
 export function UserList({ users, myId }: Props) {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap gap-2">
       {users.map((user) => (
         <div
           key={user.id}
-          title={user.is_host ? 'Host' : undefined}
+          title={user.is_host ? t.hostTooltip : undefined}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
             ${user.id === myId
               ? 'bg-brand/20 text-brand-light border border-brand/40'
@@ -31,7 +33,7 @@ export function UserList({ users, myId }: Props) {
             </svg>
           )}
           {user.id === myId && (
-            <span className="text-gray-500">(you)</span>
+            <span className="text-gray-500">{t.youLabel}</span>
           )}
         </div>
       ))}

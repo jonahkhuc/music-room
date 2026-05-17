@@ -53,7 +53,7 @@ export default function HomePage() {
       if (approved) {
         router.push(`/room/${code}?name=${encodeURIComponent(userNameRef.current)}`);
       } else {
-        setError('Host đã từ chối yêu cầu của bạn.');
+        setError(tRef.current.hostRejected);
       }
     });
     socket.on('error', (msg) => setError(msg));
@@ -62,6 +62,10 @@ export default function HomePage() {
 
   const userNameRef = useRef(userName);
   useEffect(() => { userNameRef.current = userName; }, [userName]);
+
+  // Always-fresh `t` for callbacks inside socket listeners (which only bind once).
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -74,7 +78,7 @@ export default function HomePage() {
         body:    JSON.stringify({ name: roomName, visibility }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to create room');
+      if (!res.ok) throw new Error(data.error ?? t.failedCreateRoom);
       router.push(`/room/${data.room.code}?name=${encodeURIComponent(userName)}`);
     } catch (err: any) {
       setError(err.message);

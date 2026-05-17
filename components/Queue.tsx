@@ -38,7 +38,13 @@ export function Queue({ queue, playerState, onPlay, onRemove, canControl = true 
         if (!song) return null;
 
         return (
-          <li key={item.id} className="group/row flex items-stretch">
+          <li
+            key={item.id}
+            className="group/row flex items-stretch"
+            // Native lazy paint: browser skips off-screen rows. The intrinsic
+            // size matches our row height so the scrollbar stays stable.
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '0 70px' }}
+          >
             <button
               onClick={() => canControl && onPlay(item.id)}
               disabled={!canControl && !isCurrent}

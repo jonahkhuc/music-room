@@ -8,6 +8,8 @@ import { SearchBar } from '@/components/SearchBar';
 import { UserList }  from '@/components/UserList';
 import { Chat }      from '@/components/Chat';
 import { useRoom }   from '@/hooks/useRoom';
+import { useTabAnimation } from '@/hooks/useTabAnimation';
+import { useMessageNotifications } from '@/hooks/useMessageNotifications';
 import { useToast, ToastContainer } from '@/components/Toast';
 import type { JoinRequest, Song } from '@/types';
 import { useT, LanguageSelector } from '@/contexts/LanguageContext';
@@ -42,10 +44,42 @@ export default function RoomPage() {
   const { toasts, addToast } = useToast();
   const handleTyping = (isTyping: boolean) => isTyping ? startTyping() : stopTyping();
 
+  useTabAnimation({
+    isPlaying: !!playerState?.is_playing && !!playerState?.current_song,
+    songTitle: playerState?.current_song?.song?.title,
+    roomName:  room?.name ?? code,
+  });
+
   const [copied,    setCopied]    = useState(false);
   const [rightTab,  setRightTab]  = useState<RightTab>('queue');
   // Mobile-only: open chat as a bottom sheet
   const [mobilePanel, setMobilePanel] = useState<null | 'chat' | 'requests'>(null);
+
+  // Track desktop breakpoint + tab focus to know whether chat is being viewed.
+  const [isDesktop,  setIsDesktop]  = useState(false);
+  const [tabVisible, setTabVisible] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    setIsDesktop(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  useEffect(() => {
+    const sync = () => setTabVisible(document.visibilityState === 'visible' && document.hasFocus());
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    window.addEventListener('focus', sync);
+    window.addEventListener('blur', sync);
+    return () => {
+      document.removeEventListener('visibilitychange', sync);
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('blur', sync);
+    };
+  }, []);
+
+  const isChatVisible = tabVisible && (isDesktop || mobilePanel === 'chat');
+  const { unreadCount } = useMessageNotifications({ messages, myId, isChatVisible });
 
   // Toast when visibility changes (server-confirmed)
   const prevVisRef = useRef<string | undefined>(undefined);
@@ -80,6 +114,11 @@ export default function RoomPage() {
     addToast(t.toastSongAdded);
   }, [addSong, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleAddMany = useCallback((songs: Omit<Song, 'id'>[]) => {
+    for (const s of songs) addSong(s);
+    addToast(t.playlistAdded(songs.length));
+  }, [addSong, addToast, t]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRemoveSong = useCallback((queueItemId: string) => {
     removeSong(queueItemId);
     addToast(t.toastSongRemoved, 'info');
@@ -96,7 +135,7 @@ export default function RoomPage() {
     return (
       <main className="h-screen bg-gray-950 flex items-center justify-center px-4">
         <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-6 shadow-2xl">
-          <h2 className="text-lg font-bold text-white mb-4">What&apos;s your name?</h2>
+          <h2 className="text-lg font-bold text-white mb-4">{t.whatIsYourName}</h2>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -110,7 +149,7 @@ export default function RoomPage() {
             <input
               autoFocus
               type="text"
-              placeholder="Enter your name"
+              placeholder={t.enterName}
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
               required
@@ -121,7 +160,7 @@ export default function RoomPage() {
               type="submit"
               className="py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-dark transition-all"
             >
-              Join Room
+              {t.joinRoom}
             </button>
           </form>
         </div>
@@ -135,7 +174,7 @@ export default function RoomPage() {
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <button onClick={() => router.push('/')} className="text-brand underline text-sm">
-            Back to home
+            {t.backHome}
           </button>
         </div>
       </main>
@@ -159,7 +198,7 @@ export default function RoomPage() {
               {room?.name ?? code}
               {room?.is_default && (
                 <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5
-                                 bg-brand/30 text-brand-light rounded">Default</span>
+                                 bg-brand/30 text-brand-light rounded">{t.defaultBadge}</span>
               )}
             </h1>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -183,8 +222,9 @@ export default function RoomPage() {
 
         <div className="flex items-center gap-2">
           <LanguageSelector className="hidden sm:flex" />
-          {/* Host: visibility toggle */}
-          {isHost && room && (
+          {/* Host: visibility toggle — hidden for the Lobby since it's always
+              open to everyone with no approval flow. */}
+          {isHost && room && !room.is_default && (
             <button
               onClick={() => setVisibility(room.visibility === 'private' ? 'public' : 'private')}
               title={room.visibility === 'private' ? t.makePublic : t.makePrivate}
@@ -213,14 +253,21 @@ export default function RoomPage() {
           {/* Mobile chat toggle */}
           <button
             onClick={() => setMobilePanel('chat')}
-            className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+            className="lg:hidden relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
                        bg-gray-800 hover:bg-gray-700 text-xs text-gray-300"
-            aria-label="Open chat"
+            aria-label={t.openChat}
           >
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
             </svg>
-            Chat
+            {t.chat}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1
+                               rounded-full bg-red-500 text-white text-[10px] font-bold
+                               flex items-center justify-center leading-none ring-2 ring-gray-950">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Share */}
@@ -234,14 +281,14 @@ export default function RoomPage() {
                 <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
                 </svg>
-                Copied!
+                {t.copied}
               </>
             ) : (
               <>
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 18 8a3 3 0 1 0-2.96-3.56L7.95 8.55A3 3 0 1 0 6 11c0 .24.04.47.09.7L5 12.66 2.96 13.7A2.99 2.99 0 0 0 6 14a3 3 0 1 0 .05-2.13l-1.05-.61L8.05 8.4A3 3 0 0 0 11.04 9L18 12.7c-.05.23-.09.46-.09.7A3 3 0 1 0 18 16.08z"/>
                 </svg>
-                <span className="hidden sm:inline">Share · </span>
+                <span className="hidden sm:inline">{t.share} · </span>
                 <span className="font-mono font-bold">{code}</span>
               </>
             )}
@@ -289,14 +336,14 @@ export default function RoomPage() {
         ">
           <div className="flex items-center justify-between px-4 pt-3 pb-1 flex-shrink-0">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Queue · {queue.length} song{queue.length !== 1 ? 's' : ''}
+              {t.queue} · {t.songs(queue.length)}
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0">
             <Queue queue={queue} playerState={playerState} onPlay={playSong} onRemove={handleRemoveSong} canControl={isHost} />
           </div>
           <div className="flex-shrink-0 border-t border-gray-800 px-4 py-3 bg-gray-950/95 backdrop-blur">
-            <SearchBar onAdd={handleAddSong} />
+            <SearchBar onAdd={handleAddSong} onAddMany={handleAddMany} />
           </div>
         </section>
 
@@ -310,7 +357,15 @@ export default function RoomPage() {
             <JoinRequestsPanel requests={joinRequests} onRespond={handleRespondJoin} />
           )}
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 flex-shrink-0">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chat</h2>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+              {t.chat}
+              {unreadCount > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-red-500 text-white
+                                 text-[10px] font-bold flex items-center justify-center leading-none">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </h2>
           </div>
           <Chat messages={messages} myId={myId} onSend={sendChat} onTyping={handleTyping} typingUsers={typingUsers} className="flex-1 min-h-0" />
         </aside>
@@ -322,14 +377,14 @@ export default function RoomPage() {
       {mobilePanel && (
         <div className="lg:hidden fixed inset-0 z-40 flex flex-col justify-end">
           <button
-            aria-label="Close panel"
+            aria-label={t.closePanel}
             onClick={() => setMobilePanel(null)}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <div className="relative bg-gray-950 border-t border-gray-800 rounded-t-2xl h-[75vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
               <h2 className="text-sm font-semibold text-white">
-                {mobilePanel === 'chat' ? 'Chat' : 'Join requests'}
+                {mobilePanel === 'chat' ? t.chat : t.joinRequests}
               </h2>
               <button
                 onClick={() => setMobilePanel(null)}
@@ -363,6 +418,7 @@ function JoinRequestsPanel({
   onRespond: (id: string, approved: boolean) => void;
   mobile?: boolean;
 }) {
+  const { t } = useT();
   return (
     <div className={`flex-shrink-0 border-b border-gray-800 bg-brand/5 ${mobile ? '' : 'max-h-60 overflow-y-auto'}`}>
       <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-800">
@@ -370,7 +426,7 @@ function JoinRequestsPanel({
           <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
         </svg>
         <h3 className="text-[11px] uppercase tracking-wider text-brand-light font-semibold">
-          {requests.length} pending request{requests.length > 1 ? 's' : ''}
+          {t.pendingTitle(requests.length)}
         </h3>
       </div>
       <ul className="divide-y divide-gray-800">
@@ -378,24 +434,24 @@ function JoinRequestsPanel({
           <li key={r.id} className="px-3 py-2 flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white truncate">{r.user_name}</p>
-              <p className="text-[10px] text-gray-500">wants to join</p>
+              <p className="text-[10px] text-gray-500">{t.wantsToJoin}</p>
             </div>
             <button
               onClick={() => onRespond(r.id, true)}
               className="px-2 py-1 rounded-md bg-brand text-white text-xs font-medium hover:bg-brand-dark"
             >
-              Approve
+              {t.approve}
             </button>
             <button
               onClick={() => onRespond(r.id, false)}
               className="px-2 py-1 rounded-md bg-gray-800 text-gray-300 text-xs font-medium hover:bg-gray-700"
             >
-              Deny
+              {t.deny}
             </button>
           </li>
         ))}
         {requests.length === 0 && (
-          <li className="px-3 py-6 text-center text-xs text-gray-500">No pending requests</li>
+          <li className="px-3 py-6 text-center text-xs text-gray-500">{t.noPendingRequests}</li>
         )}
       </ul>
     </div>

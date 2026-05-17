@@ -107,7 +107,7 @@ export function Chat({ messages, myId, onSend, onTyping, typingUsers = [], class
                      placeholder-gray-500 outline-none focus:border-brand"
         />
         <button
-          type="submit" disabled={!text.trim()} aria-label="Send"
+          type="submit" disabled={!text.trim()} aria-label={t.send}
           className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center
                      disabled:opacity-40 hover:bg-brand-dark active:scale-95 transition-all"
         >

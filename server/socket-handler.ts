@@ -34,6 +34,7 @@ interface MemRoom {
 }
 
 const MAX_CHAT_HISTORY = 100;
+const MAX_QUEUE_SIZE   = 1000;
 
 const users     = new Map<string, MemUser>();   // socketId → user
 const roomCache = new Map<string, MemRoom>();   // roomCode → room state
@@ -286,6 +287,12 @@ export function setupSocketHandlers(io: IO) {
       try {
         const room = await db.getRoomByCode(user.roomCode);
         if (!room) return;
+
+        const existing = await db.getRoomQueue(room.id);
+        if (existing.length >= MAX_QUEUE_SIZE) {
+          socket.emit('error', `Queue is full (max ${MAX_QUEUE_SIZE} songs).`);
+          return;
+        }
 
         const song      = await db.upsertSong(songData);
         await db.addToQueue({ room_id: room.id, song_id: song.id, added_by: user.name });
