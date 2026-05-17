@@ -201,6 +201,65 @@ export function Player({
     else       { p.unMute(); p.setVolume(volume); }
   }, [volume, muted]);
 
+  // ── Media Session: tell Chrome this tab is playing media so it's less
+  //    likely to be discarded/throttled in the background, and surface
+  //    play/pause/seek in OS-level media controls. ──────────────────────────
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const s = playerState.current_song?.song;
+
+    if (!s) {
+      ms.metadata = null;
+      ms.playbackState = 'none';
+      return;
+    }
+
+    const thumb = s.thumbnail;
+    ms.metadata = new MediaMetadata({
+      title:  s.title ?? '',
+      artist: s.channel ?? '',
+      album:  '',
+      artwork: thumb ? [
+        { src: thumb, sizes: '96x96',   type: 'image/jpeg' },
+        { src: thumb, sizes: '192x192', type: 'image/jpeg' },
+        { src: thumb, sizes: '512x512', type: 'image/jpeg' },
+      ] : [],
+    });
+    ms.playbackState = playerState.is_playing ? 'playing' : 'paused';
+
+    const setHandler = (action: MediaSessionAction, handler: (() => void) | null) => {
+      try { ms.setActionHandler(action, handler as MediaSessionActionHandler | null); }
+      catch { /* unsupported action */ }
+    };
+
+    setHandler('play',  () => isHost && onTogglePlay(true));
+    setHandler('pause', () => isHost && onTogglePlay(false));
+    setHandler('previoustrack', () => isHost && onPrev());
+    setHandler('nexttrack',     () => isHost && onNext());
+    setHandler('seekbackward', () => {
+      if (!isHost) return;
+      const p = ytRef.current;
+      const now = p?.getCurrentTime?.() ?? 0;
+      onSeek(Math.max(0, now - SEEK_STEP));
+    });
+    setHandler('seekforward', () => {
+      if (!isHost) return;
+      const p = ytRef.current;
+      const now = p?.getCurrentTime?.() ?? 0;
+      onSeek(Math.max(0, now + SEEK_STEP));
+    });
+
+    return () => {
+      setHandler('play',  null);
+      setHandler('pause', null);
+      setHandler('previoustrack', null);
+      setHandler('nexttrack',     null);
+      setHandler('seekbackward',  null);
+      setHandler('seekforward',   null);
+    };
+  }, [playerState.current_song?.song?.source_id, playerState.current_song?.song?.title, playerState.current_song?.song?.channel, playerState.current_song?.song?.thumbnail, playerState.is_playing, isHost, onTogglePlay, onPrev, onNext, onSeek]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Host-only: push current time to the server every few seconds so new
   //    joiners receive an accurate timestep when they get room_state. ─────────
   useEffect(() => {

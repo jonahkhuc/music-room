@@ -115,6 +115,20 @@ export function useRoom(roomCode: string, userName: string) {
     if (me) setIsHost(me.is_host);
   }, [users, myId]);
 
+  // When the tab becomes visible again, Chrome may have throttled JS or paused
+  // the YT iframe while we were in the background. Ask the server for the
+  // current player state — Player.applyCurrentState() will seek back to the
+  // right position because `updated_at` will have advanced via report_progress.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && socketRef.current?.connected) {
+        socketRef.current.emit('sync_request');
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   const addSong     = useCallback((song: Omit<Song, 'id'>) =>
     socketRef.current?.emit('add_song', song), []);
 
