@@ -34,12 +34,20 @@ export function useRoom(roomCode: string, userName: string) {
   useEffect(() => {
     if (!roomCode || !userName) return;
 
-    const socket: RoomSocket = io({ transports: ['websocket', 'polling'] });
+    const socket: RoomSocket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setConnected(true);
       mySocketId.current = socket.id ?? '';
+      // Re-join on every (re)connect so we recover state after a proxy drop.
       socket.emit('join_room', { roomCode, userName });
     });
 

@@ -21,6 +21,11 @@ app.prepare().then(() => {
   const io = new SocketIO<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: { origin: '*' },
     transports: ['websocket', 'polling'],
+    // Keep traffic flowing more often than typical proxy idle timeouts
+    // (Cloudflare free ≈100s, many nginx defaults ≈60s) so the upstream
+    // doesn't silently drop an "idle" WebSocket.
+    pingInterval: 20000,
+    pingTimeout:  25000,
   });
 
   setupSocketHandlers(io);

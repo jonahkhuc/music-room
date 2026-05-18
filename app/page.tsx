@@ -44,7 +44,14 @@ export default function HomePage() {
   }, [userName]);
 
   useEffect(() => {
-    const socket: LobbySocket = io({ transports: ['websocket', 'polling'] });
+    const socket: LobbySocket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    });
     socketRef.current = socket;
     socket.on('connect', () => socket.emit('list_rooms'));
     socket.on('rooms_list', setRooms);
